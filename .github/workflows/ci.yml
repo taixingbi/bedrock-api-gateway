@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  fmt-validate:
+    name: fmt + validate (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive .
+
+      - name: terraform init (no backend, validate only)
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform validate
+
+  plan:
+    name: plan (dev)
+    needs: fmt-validate
+    runs-on: ubuntu-latest
+    environment: plan
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_API_GATEWAY_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform init
+        working-directory: environments/dev
+        run: terraform init -input=false
+
+      - name: terraform plan
+        working-directory: environments/dev
+        run: terraform plan -input=false -lock=false
+
+  apply-dev:
+    name: apply (dev)
+    needs: fmt-validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: apply-dev
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_API_GATEWAY_APPLY_DEV_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform init
+        working-directory: environments/dev
+        run: terraform init -input=false
+
+      - name: terraform apply
+        working-directory: environments/dev
+        run: terraform apply -input=false -auto-approve
