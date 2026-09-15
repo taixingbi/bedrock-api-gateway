@@ -40,6 +40,30 @@ caller (the portal's `GATEWAY_API_URL`, any SigV4 client's endpoint
 config) needed updating to match. Simpler to set up than a careful
 state migration, at the cost of that one-time URL change.
 
+## The cutover's real gotcha: cross-repo SG destroy ordering
+
+`bedrock-gateway-infra`'s `modules/ecs_service`'s ALB security group
+ingress rule switched from `aws_security_group.vpc_link.id` (an
+in-config resource) to `data.aws_security_group.api_gateway_vpc_link`
+(a by-name lookup, once the old resource was deleted from that repo's
+config entirely). Terraform's dependency graph has no way to know the
+old resource and the new data-sourced value are "the same slot" --
+they're structurally unrelated in the new config -- so it doesn't
+reliably order "update the ALB's rule to the new SG" before "destroy
+the now-config-absent old SG". Confirmed live twice: the old SG's
+`DeleteSecurityGroup` call spent the full ~15-minute retry window on
+`DependencyViolation` and failed the apply both times, because the
+ALB's ingress rule still referenced it when the destroy was attempted.
+
+Fixed by hand mid-cutover (revoke the old ingress rule, authorize the
+new one, then delete the orphaned SG directly via the EC2 API) rather
+than a third blind retry -- confirmed with `terraform plan` afterward
+that state matched reality with zero drift. If this split is ever
+redone in another account/environment, expect the same failure and
+the same fix: don't count on Terraform to sequence a cross-repo
+security-group swap correctly in one apply when the old side of it is
+being removed from config in the same change.
+
 ## CI/CD
 
 Same dev-auto/prod-manual-promotion shape as `bedrock-gateway-infra`:
