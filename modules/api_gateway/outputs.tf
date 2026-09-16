@@ -11,3 +11,8 @@ output "execute_api_arn_iam_route" {
   description = "Grant execute-api:Invoke on this ARN to any IAM principal that should reach the /iam/* route."
   value       = "${aws_apigatewayv2_api.this.execution_arn}/*/*/iam/{proxy+}"
 }
+
+output "access_log_group_name" {
+  description = "CloudWatch log group holding this stage's access logs -- includes requests the AWS_IAM authorizer rejected before they reached the backend."
+  value       = aws_cloudwatch_log_group.access.name
+}

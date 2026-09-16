@@ -89,8 +89,61 @@ resource "aws_apigatewayv2_route" "open" {
   target             = "integrations/${aws_apigatewayv2_integration.open.id}"
 }
 
+
+# Access logging -- covers every request that reaches this stage,
+# including ones the AWS_IAM authorizer rejects before the backend
+# ever sees them (the one class of failure gateway-api's own
+# CloudWatch logs can never show, since a rejected request never
+# reaches it).
+resource "aws_cloudwatch_log_group" "access" {
+  name              = "/aws/apigateway/${var.name_prefix}-api"
+  retention_in_days = var.log_retention_days
+}
+
+# HTTP APIs (apigatewayv2), unlike REST APIs, don't use the account-
+# level CloudWatchRoleArn setting for log delivery -- the destination
+# log group's own resource policy is what has to grant apigateway.
+# amazonaws.com write access.
+data "aws_iam_policy_document" "access_log_delivery" {
+  statement {
+    sid    = "ApiGatewayAccessLogDelivery"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.access.arn}:*"]
+  }
+}
+
+resource "aws_cloudwatch_log_resource_policy" "access_log_delivery" {
+  policy_name     = "${var.name_prefix}-api-gw-access-log"
+  policy_document = data.aws_iam_policy_document.access_log_delivery.json
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.this.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.access.arn
+    format = jsonencode({
+      requestId        = "$context.requestId"
+      ip                = "$context.identity.sourceIp"
+      requestTime       = "$context.requestTime"
+      httpMethod        = "$context.httpMethod"
+      routeKey          = "$context.routeKey"
+      status            = "$context.status"
+      protocol          = "$context.protocol"
+      responseLength    = "$context.responseLength"
+      integrationStatus = "$context.integration.status"
+      integrationError  = "$context.integration.error"
+      authorizerError   = "$context.authorizer.error"
+      errorMessage      = "$context.error.message"
+    })
+  }
+
+  depends_on = [aws_cloudwatch_log_resource_policy.access_log_delivery]
 }

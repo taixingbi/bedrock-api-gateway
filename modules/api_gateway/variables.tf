@@ -29,3 +29,9 @@ variable "account_id_header" {
   type        = string
   default     = "x-platform-account-id"
 }
+
+variable "log_retention_days" {
+  description = "CloudWatch retention for the stage's access log group."
+  type        = number
+  default     = 14
+}
