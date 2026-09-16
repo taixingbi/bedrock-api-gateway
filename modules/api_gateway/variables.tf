@@ -35,3 +35,9 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "log_group_name" {
+  description = "Override for the access log group name; defaults to \"/aws/apigateway/<name_prefix>-api\" when empty."
+  type        = string
+  default     = ""
+}

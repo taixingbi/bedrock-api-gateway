@@ -96,7 +96,7 @@ resource "aws_apigatewayv2_route" "open" {
 # CloudWatch logs can never show, since a rejected request never
 # reaches it).
 resource "aws_cloudwatch_log_group" "access" {
-  name              = "/aws/apigateway/${var.name_prefix}-api"
+  name              = var.log_group_name != "" ? var.log_group_name : "/aws/apigateway/${var.name_prefix}-api"
   retention_in_days = var.log_retention_days
 }
 
