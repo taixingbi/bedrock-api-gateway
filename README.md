@@ -1,4 +1,4 @@
-# bedrock-api-gateway
+# platform-api-gateway
 
 The Bedrock Gateway platform's front door, split out of
 `bedrock-gateway-infra`'s `modules/api_gateway` into its own repo (see
@@ -21,7 +21,7 @@ API Gateway gets a new one).
 ### `/iam/v1/chat` — AWS_IAM / SigV4
 
 API Gateway verifies the signature itself, so the caller needs real
-AWS credentials for a principal mapped in `bedrock-authz-service`
+AWS credentials for a principal mapped in `platform-authz-service`
 (`policies/iam_tenants.yaml`, or a provisioned application — see
 `bedrock-gateway-app`'s onboarding workflow). Plain `curl` can't sign
 a SigV4 request on its own; the two easiest ways to do it are:
@@ -55,7 +55,7 @@ print(resp.status_code, resp.json())
 ```
 
 An unmapped/unknown principal gets `403 UNKNOWN_IAM_PRINCIPAL` from
-`bedrock-authz-service`, not a signature error — the signature itself
+`platform-authz-service`, not a signature error — the signature itself
 is already valid by the time API Gateway forwards the request.
 
 ### `/v1/chat` — Bearer JWT
