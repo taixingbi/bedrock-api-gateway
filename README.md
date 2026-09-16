@@ -11,6 +11,68 @@ ANY /iam/{proxy+}  AWS_IAM   -- SigV4-signed calls
 ANY /{proxy+}      NONE      -- Bearer JWT calls, verified by the app itself
 ```
 
+## Example usage
+
+Base URL is this repo's own `api_endpoint` output (dev:
+`https://as1n3q8d33.execute-api.us-east-1.amazonaws.com` — re-check the
+output if this has ever been re-applied, since a destroyed/recreated
+API Gateway gets a new one).
+
+### `/iam/v1/chat` — AWS_IAM / SigV4
+
+API Gateway verifies the signature itself, so the caller needs real
+AWS credentials for a principal mapped in `bedrock-authz-service`
+(`policies/iam_tenants.yaml`, or a provisioned application — see
+`bedrock-gateway-app`'s onboarding workflow). Plain `curl` can't sign
+a SigV4 request on its own; the two easiest ways to do it are:
+
+**`awscurl`** (`pip install awscurl`) — closest thing to a literal curl call:
+
+```bash
+awscurl --service execute-api --region us-east-1 \
+  -X POST https://as1n3q8d33.execute-api.us-east-1.amazonaws.com/iam/v1/chat \
+  -H "content-type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Say hi in one word."}]}'
+```
+
+**Python + boto3** (no extra CLI tool, uses whatever credentials are
+already active — an assumed role, an env var, etc.):
+
+```python
+import boto3, json, requests
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+
+url = "https://as1n3q8d33.execute-api.us-east-1.amazonaws.com/iam/v1/chat"
+body = json.dumps({"messages": [{"role": "user", "content": "Say hi in one word."}]})
+
+creds = boto3.Session().get_credentials().get_frozen_credentials()
+request = AWSRequest(method="POST", url=url, data=body, headers={"content-type": "application/json"})
+SigV4Auth(creds, "execute-api", "us-east-1").add_auth(request)
+
+resp = requests.post(url, data=body, headers=dict(request.headers))
+print(resp.status_code, resp.json())
+```
+
+An unmapped/unknown principal gets `403 UNKNOWN_IAM_PRINCIPAL` from
+`bedrock-authz-service`, not a signature error — the signature itself
+is already valid by the time API Gateway forwards the request.
+
+### `/v1/chat` — Bearer JWT
+
+Plain `curl` works here; no request signing needed, just a valid
+OIDC-issued token (Cognito, via the portal's login flow) or, for local
+testing, a dev-keypair-signed token
+(`bedrock-gateway-app`'s `scripts/generate_dev_token.py`, only usable
+where `OIDC_JWKS_URL` is unset):
+
+```bash
+curl -s -X POST https://as1n3q8d33.execute-api.us-east-1.amazonaws.com/v1/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Say hi in one word."}]}'
+```
+
 ## Deliberately loose coupling to bedrock-gateway-infra
 
 This repo never reads `bedrock-gateway-infra`'s Terraform state
