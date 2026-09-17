@@ -142,14 +142,18 @@ resource "aws_apigatewayv2_stage" "default" {
     # which log group it came from.
     #
     # requestId is API Gateway's OWN internal request ID (always an
-    # opaque string like "D0V2kjWCIAMEJmw=") -- unrelated to and never
-    # the same as clientRequestId, the caller-supplied/gateway-api-
-    # forwarded x-request-id header, which is what actually correlates
-    # this line with gateway-api's/authz-service's own logs for the
-    # SAME request (see bedrock-gateway-app's telemetry/middleware.py
-    # and auth/aws_iam.py's HttpIamTenantResolver).
+    # opaque string like "D0V2kjWCIAMEJmw=") -- distinct from our own
+    # application-level request_id. Exposing an arbitrary inbound
+    # request header (e.g. the caller's x-request-id) here was tried
+    # and confirmed NOT supported -- API Gateway v2 access logs only
+    # accept a fixed set of $context variables; $context.requestHeader.*
+    # 400s the stage update ("context variables are not supported").
+    # Correlation has to go the other way instead: gateway-api can log
+    # the inbound Apigw-Requestid header (API Gateway forwards its own
+    # $context.requestId to the backend under that name) alongside its
+    # own request_id, rather than this log trying to carry the app's ID.
     format = chomp(<<-EOT
-      {"requestTime":"$context.requestTime","requestId":"$context.requestId","clientRequestId":"$context.requestHeader.x-request-id","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
+      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
     EOT
     )
   }
