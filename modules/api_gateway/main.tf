@@ -61,7 +61,15 @@ resource "aws_apigatewayv2_integration" "iam" {
     # is confirmed NOT supported for the stage's access log format, a
     # different mechanism entirely -- this one already works for
     # principal_arn_header/account_id_header above.
-    "overwrite:header.apigw-requestid" = "$${context.requestId}"
+    #
+    # x- prefixed like every other custom header here, NOT the bare
+    # "apigw-requestid" name -- confirmed live that AWS reserves that
+    # exact name ("Operations on header apigw-requestid are
+    # restricted", 400 on both read AND write attempts), presumably
+    # because it's used internally by some integration types even
+    # though nothing reaches this VPC Link/HTTP_PROXY integration with
+    # it pre-set.
+    "overwrite:header.x-apigw-request-id" = "$${context.requestId}"
   })
 }
 
@@ -87,7 +95,7 @@ resource "aws_apigatewayv2_integration" "open" {
     # still shouldn't let a client inject an arbitrary value that looks
     # like it came from API Gateway. See the iam integration's identical
     # mapping for the full comment.
-    "overwrite:header.apigw-requestid" = "$${context.requestId}"
+    "overwrite:header.x-apigw-request-id" = "$${context.requestId}"
   })
 }
 
