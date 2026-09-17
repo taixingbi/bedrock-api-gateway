@@ -140,8 +140,16 @@ resource "aws_apigatewayv2_stage" "default" {
     # structured JSON logs (telemetry/logging.py) -- let a request be
     # traced across every log source without needing to already know
     # which log group it came from.
+    #
+    # requestId is API Gateway's OWN internal request ID (always an
+    # opaque string like "D0V2kjWCIAMEJmw=") -- unrelated to and never
+    # the same as clientRequestId, the caller-supplied/gateway-api-
+    # forwarded x-request-id header, which is what actually correlates
+    # this line with gateway-api's/authz-service's own logs for the
+    # SAME request (see bedrock-gateway-app's telemetry/middleware.py
+    # and auth/aws_iam.py's HttpIamTenantResolver).
     format = chomp(<<-EOT
-      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
+      {"requestTime":"$context.requestTime","requestId":"$context.requestId","clientRequestId":"$context.requestHeader.x-request-id","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
     EOT
     )
   }
