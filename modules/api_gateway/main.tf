@@ -141,19 +141,24 @@ resource "aws_apigatewayv2_stage" "default" {
     # traced across every log source without needing to already know
     # which log group it came from.
     #
-    # requestId is API Gateway's OWN internal request ID (always an
-    # opaque string like "D0V2kjWCIAMEJmw=") -- distinct from our own
-    # application-level request_id. Exposing an arbitrary inbound
-    # request header (e.g. the caller's x-request-id) here was tried
-    # and confirmed NOT supported -- API Gateway v2 access logs only
-    # accept a fixed set of $context variables; $context.requestHeader.*
-    # 400s the stage update ("context variables are not supported").
-    # Correlation has to go the other way instead: gateway-api can log
-    # the inbound Apigw-Requestid header (API Gateway forwards its own
+    # api_gateway_request_id is API Gateway's OWN internal request ID
+    # (always an opaque string like "D0V2kjWCIAMEJmw=") -- distinct from
+    # our own application-level request_id, hence the explicit name
+    # (was "requestId", easy to mistake for the app's own field of the
+    # same generic name once both show up side by side in a log
+    # aggregator). Exposing an arbitrary inbound request header (e.g.
+    # the caller's x-request-id, traceparent, or x-session-id) here was
+    # tried and confirmed NOT supported -- API Gateway v2 access logs
+    # only accept a fixed set of $context variables;
+    # $context.requestHeader.* 400s the stage update ("context
+    # variables are not supported"), so this log can never carry
+    # trace_id/span_id/session_id/the app's request_id. Correlation has
+    # to go the other way instead: gateway-api can log the inbound
+    # Apigw-Requestid header (API Gateway forwards its own
     # $context.requestId to the backend under that name) alongside its
-    # own request_id, rather than this log trying to carry the app's ID.
+    # own request_id, rather than this log trying to carry the app's IDs.
     format = chomp(<<-EOT
-      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
+      {"requestTime":"$context.requestTime","api_gateway_request_id":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
     EOT
     )
   }
