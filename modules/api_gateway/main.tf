@@ -52,6 +52,16 @@ resource "aws_apigatewayv2_integration" "iam" {
   request_parameters = merge(local.path_rewrite, {
     "overwrite:header.${var.principal_arn_header}" = "$${context.identity.userArn}"
     "overwrite:header.${var.account_id_header}"    = "$${context.identity.accountId}"
+    # Same join-key gap the access log's own api_gateway_request_id
+    # field exists for (see this stage's format comment) -- gateway-api
+    # logs this same value under the same field name (telemetry/
+    # middleware.py) so the two logs can be correlated. Writing a header
+    # FROM a $context variable this way is the supported direction;
+    # $context.requestHeader.* (reading an INBOUND header, the reverse)
+    # is confirmed NOT supported for the stage's access log format, a
+    # different mechanism entirely -- this one already works for
+    # principal_arn_header/account_id_header above.
+    "overwrite:header.apigw-requestid" = "$${context.requestId}"
   })
 }
 
@@ -72,6 +82,12 @@ resource "aws_apigatewayv2_integration" "open" {
   request_parameters = merge(local.path_rewrite, {
     "remove:header.${var.principal_arn_header}" = ""
     "remove:header.${var.account_id_header}"    = ""
+    # Overwrite (not remove-if-client-sent, like the two above) -- this
+    # isn't a trust/auth field, just a log correlation convenience, but
+    # still shouldn't let a client inject an arbitrary value that looks
+    # like it came from API Gateway. See the iam integration's identical
+    # mapping for the full comment.
+    "overwrite:header.apigw-requestid" = "$${context.requestId}"
   })
 }
 
