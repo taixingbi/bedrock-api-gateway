@@ -135,8 +135,13 @@ resource "aws_apigatewayv2_stage" "default" {
     # map(string) (maps have no defined order) and alphabetize the keys
     # instead of preserving the grouping below. A literal string sidesteps
     # that entirely.
+    # service/environment are fixed per-deployment identity fields, same
+    # convention as bedrock-gateway-app's/platform-authz-service's own
+    # structured JSON logs (telemetry/logging.py) -- let a request be
+    # traced across every log source without needing to already know
+    # which log group it came from.
     format = chomp(<<-EOT
-      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol"}
+      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
     EOT
     )
   }

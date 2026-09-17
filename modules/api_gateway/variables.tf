@@ -3,6 +3,11 @@ variable "name_prefix" {
   type        = string
 }
 
+variable "environment" {
+  description = "\"dev\" or \"prod\" -- stamped into the access log's own \"environment\" field (see the stage's access_log_settings.format)."
+  type        = string
+}
+
 variable "alb_listener_arn" {
   description = "The private ALB listener to integrate with (modules/ecs_service's alb_listener_arn output)."
   type        = string

@@ -50,6 +50,7 @@ module "api_gateway" {
   source = "../../modules/api_gateway"
 
   name_prefix                = local.name_prefix
+  environment                = "prod"
   alb_listener_arn           = data.aws_lb_listener.gateway_http.arn
   vpc_link_subnet_ids        = data.aws_lb.gateway.subnets
   vpc_link_security_group_id = aws_security_group.vpc_link.id
