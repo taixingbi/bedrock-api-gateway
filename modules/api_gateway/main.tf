@@ -177,12 +177,13 @@ resource "aws_apigatewayv2_stage" "default" {
     # $context.requestHeader.* 400s the stage update ("context
     # variables are not supported"), so this log can never carry
     # trace_id/span_id/session_id/the app's request_id. Correlation has
-    # to go the other way instead: gateway-api can log the inbound
-    # Apigw-Requestid header (API Gateway forwards its own
-    # $context.requestId to the backend under that name) alongside its
-    # own request_id, rather than this log trying to carry the app's IDs.
+    # to go the other way instead: the iam/open integrations map
+    # $context.requestId onto x-apigw-request-id (the bare name
+    # "apigw-requestid" is AWS-reserved -- confirmed live, 400s any
+    # mapping operation at all), which gateway-api logs under this same
+    # field name alongside its own request_id.
     format = chomp(<<-EOT
-      {"requestTime":"$context.requestTime","api_gateway_request_id":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol","service":"platform-api-gateway","environment":"${var.environment}"}
+      {"requestTime":"$context.requestTime","service":"platform-api-gateway","environment":"${var.environment}","api_gateway_request_id":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","protocol":"$context.protocol","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","status":"$context.status","responseLength":"$context.responseLength"}
     EOT
     )
   }
