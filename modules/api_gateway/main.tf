@@ -129,20 +129,16 @@ resource "aws_apigatewayv2_stage" "default" {
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.access.arn
-    format = jsonencode({
-      requestId         = "$context.requestId"
-      ip                = "$context.identity.sourceIp"
-      requestTime       = "$context.requestTime"
-      httpMethod        = "$context.httpMethod"
-      routeKey          = "$context.routeKey"
-      status            = "$context.status"
-      protocol          = "$context.protocol"
-      responseLength    = "$context.responseLength"
-      integrationStatus = "$context.integration.status"
-      integrationError  = "$context.integration.error"
-      authorizerError   = "$context.authorizer.error"
-      errorMessage      = "$context.error.message"
-    })
+    # A plain string template, not jsonencode() -- $context.* fields are
+    # interpolated by API Gateway at request time, not by Terraform, and
+    # every value here is a string, so jsonencode() would infer this as
+    # map(string) (maps have no defined order) and alphabetize the keys
+    # instead of preserving the grouping below. A literal string sidesteps
+    # that entirely.
+    format = chomp(<<-EOT
+      {"requestTime":"$context.requestTime","requestId":"$context.requestId","ip":"$context.identity.sourceIp","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationStatus":"$context.integration.status","integrationError":"$context.integration.error","authorizerError":"$context.authorizer.error","errorMessage":"$context.error.message","protocol":"$context.protocol"}
+    EOT
+    )
   }
 
   depends_on = [aws_cloudwatch_log_resource_policy.access_log_delivery]
